@@ -1,1 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналог AppSheet на GitHub</title>
+    <!-- Подключаем Bootstrap для красивого дизайна без CSS -->
+    <link href="https://jsdelivr.net" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card-app { transition: transform 0.2s; border-left: 5px solid #0d6efd; }
+        .card-app:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<div class="container my-5">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-6">
+            <h2 class="fw-bold text-primary">Моё Приложение</h2>
+            <p class="text-muted">Данные синхронизируются напрямую из Google Sheets</p>
+        </div>
+        <!-- Живой поиск по приложению -->
+        <div class="col-md-6">
+            <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Поиск по названию или ID...">
+        </div>
+    </div>
+
+    <!-- Индикатор загрузки -->
+    <div id="loader" class="text-center my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Загрузка данных...</p>
+    </div>
+
+    <!-- Сюда JavaScript будет выводить карточки с данными -->
+    <div class="row g-3" id="appContainer"></div>
+</div>
+
+<script>
+    // ⚠️ ВСТАВЬ СЮДА СВОЮ ССЫЛКУ НА .CSV ИЗ GOOGLE ТАБЛИЦЫ
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTATr262S6BKRHYqXJDWn2fdXzvcuObfwICB0THLLoqDsWTUFbFB-jc5yK8exu0wYiLL-sEt9zmXOwf/pub?output=csv";
+
+    let globalData = []; // Переменная для хранения загруженных данных
+
+    // Функция для разбора CSV-строки с учетом возможных запятых внутри кавычек
+    function parseCSV(text) {
+        let lines = text.split(/\r\n|\n/);
+        return lines.map(line => {
+            let matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            return matches ? matches.map(val => val.replace(/^"|"$/g, '').trim()) : [];
+        }).filter(row => row.length > 0);
+    }
+
+    async function loadData() {
+        try {
+            const response = await fetch(csvUrl);
+            const text = await response.text();
+            
+            // Превращаем CSV-текст в массив массивов
+            const rawRows = parseCSV(text);
+            if (rawRows.length < 2) return;
+
+            // Вытаскиваем заголовки (первая строка таблицы)
+            const headers = rawRows[0];
+            
+            // Формируем удобный массив объектов и сразу фильтруем пустые строки
+            globalData = rawRows.slice(1).map(row => {
+                let item = {};
+                headers.forEach((header, index) => {
+                    item[header] = row[index] || ""; // Если ячейка пустая, пишем пустую строку
+                });
+                return item;
+            }).filter(item => {
+                // ТРЕНИРОВКА ФИЛЬТРАЦИИ: исключаем строки, где, например, главный элемент или ID пустой
+                // Предполагаем, что у тебя есть колонка "Название" или первая колонка не должна быть пустой
+                const firstKey = headers[0];
+                return item[firstKey] && item[firstKey] !== ""; 
+            });
+
+            document.getElementById('loader').classList.add('d-none');
+            renderCards(globalData);
+
+        } catch (error) {
+            console.error("Ошибка загрузки данных:", error);
+            document.getElementById('loader').innerHTML = `<p class="text-danger">Не удалось загрузить данные. Проверьте публикацию таблицы.</p>`;
+        }
+    }
+
+    // Функция отрисовки карточек на экране
+    function renderCards(data) {
+        const container = document.getElementById('appContainer');
+        container.innerHTML = "";
+
+        if (data.length === 0) {
+            container.innerHTML = `<div class="col-12 text-center text-muted my-4">Ничего не найдено</div>`;
+            return;
+        }
+
+        data.forEach(item => {
+            // Динамически собираем HTML-контент из всех доступных свойств объекта
+            let detailsHtml = "";
+            for (let key in item) {
+                // Не выводим заголовки "ID" или "Название" в тело карточки, так как они пойдут в шапку
+                if (key.toLowerCase() !== 'id' && key.toLowerCase() !== 'название' && item[key]) {
+                    detailsHtml += `<p class="card-text mb-1"><strong>${key}:</strong> ${item[key]}</p>`;
+                }
+            }
+
+            const card = document.createElement('div');
+            card.className = 'col-md-6 col-lg-4';
+            card.innerHTML = `
+                <div class="card h-100 card-app bg-white border-0 shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title fw-bold text-dark mb-0">${item['Название'] || 'Без названия'}</h5>
+                            ${item['ID'] ? `<span class="badge bg-secondary">ID: ${item['ID']}</span>` : ''}
+                        </div>
+                        <div class="text-secondary flex-grow-1">
+                            ${detailsHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // Логика живого поиска (поиск по любому полю карточки)
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const filtered = globalData.filter(item => {
+            return Object.values(item).some(val => val.toLowerCase().includes(query));
+        });
+        renderCards(filtered);
+    });
+
+    // Запуск приложения при загрузке страницы
+    window.addEventListener('DOMContentLoaded', loadData);
+</script>
+
+</body>
+</html>
 
