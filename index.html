@@ -43,13 +43,38 @@
     let globalData = []; // Переменная для хранения загруженных данных
 
     // Функция для разбора CSV-строки с учетом возможных запятых внутри кавычек
-    function parseCSV(text) {
-        let lines = text.split(/\r\n|\n/);
-        return lines.map(line => {
-            let matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-            return matches ? matches.map(val => val.replace(/^"|"$/g, '').trim()) : [];
-        }).filter(row => row.length > 0);
+    // Новая улучшенная функция для разбора CSV без потери длинного текста
+function parseCSV(text) {
+    let lines = [];
+    let row = [""];
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        let r = text[i];
+        let next = text[i+1];
+
+        if (r === '"') {
+            if (inQuotes && next === '"') { 
+                row[row.length - 1] += '"'; i++; 
+            } else { 
+                inQuotes = !inQuotes; 
+            }
+        } else if (r === ',' && !inQuotes) {
+            row.push('');
+        } else if ((r === '\r' || r === '\n') && !inQuotes) {
+            if (r === '\r' && next === '\n') { i++; }
+            lines.push(row);
+            row = [""];
+        } else {
+            row[row.length - 1] += r;
+        }
     }
+    if (row.length > 1 || row[0] !== "") {
+        lines.push(row);
+    }
+    return lines.filter(r => r.length > 0);
+}
+
 
     async function loadData() {
         try {
