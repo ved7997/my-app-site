@@ -180,34 +180,34 @@
             comment: document.getElementById('formComment').value
         };
 
-        try {
+                try {
+            // Отправляем данные как простой текст, чтобы гарантированно обойти ограничения CORS
             const response = await fetch(scriptUrl, {
                 method: "POST",
-                mode: "cors",
+                mode: "no-cors", // Меняем на "no-cors", браузер пропустит запрос вслепую
+                headers: {
+                    "Content-Type": "text/plain" 
+                },
                 body: JSON.stringify(payload)
             });
             
-            const result = await response.json();
+            // В режиме no-cors мы не можем прочитать ответ от сервера (он будет пустой status: 0),
+            // но если запрос не выкинул ошибку в catch — значит данные успешно улетели в Google
             
-            if (result.status === "success") {
-                document.getElementById('dataForm').reset();
-                // Показываем лоадер и заново перечитываем обновленную таблицу
-                document.getElementById('appContainer').innerHTML = "";
-                document.getElementById('loader').classList.remove('d-none');
-                
-                // Google Таблице нужно около 2-3 секунд, чтобы обновить свой CSV-дамп в интернете
-                setTimeout(loadData, 2500); 
-            } else {
-                alert("Ошибка скрипта: " + result.message);
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Сохранить в базу";
-            }
+            document.getElementById('dataForm').reset();
+            document.getElementById('appContainer').innerHTML = "";
+            document.getElementById('loader').classList.remove('d-none');
+            
+            // Даем таблице 3 секунды обновиться и перезагружаем карточки
+            setTimeout(loadData, 3000); 
+
         } catch (error) {
             console.error("Ошибка сети:", error);
-            alert("Не удалось отправить запрос. Проверьте развертывание веб-приложения.");
+            alert("Не удалось отправить данные.");
             submitBtn.disabled = false;
             submitBtn.innerText = "Сохранить в базу";
         }
+
     });
 
     // Живой поиск
