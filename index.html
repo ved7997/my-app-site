@@ -3,115 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аналог AppSheet на GitHub</title>
-    <!-- Подключаем Bootstrap для красивого дизайна без CSS -->
+    <title>Мой аналог AppSheet</title>
+    <!-- Красивые стили Bootstrap -->
     <link href="https://jsdelivr.net" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .card-app { transition: transform 0.2s; border-left: 5px solid #0d6efd; }
-        .card-app:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        body { background-color: #f4f6f9; font-family: system-ui, -apple-system, sans-serif; }
+        .card-app { transition: all 0.2s ease-in-out; border-left: 5px solid #0d6efd; border-radius: 8px; }
+        .card-app:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }
+        .comment-text { white-space: pre-wrap; word-break: break-word; color: #495057; }
     </style>
 </head>
 <body>
 
-<div class="container my-5">
-    <div class="row mb-4 align-items-center">
-        <div class="col-md-6">
-            <h2 class="fw-bold text-primary">Моё Приложение</h2>
-            <p class="text-muted">Данные синхронизируются напрямую из Google Sheets</p>
+<div class="container my-5" style="max-width: 900px;">
+    
+    <!-- ЗАГОЛОВОК -->
+    <div class="row mb-5 align-items-center">
+        <div class="col-md-7">
+            <h1 class="fw-bold text-dark m-0">Панель управления</h1>
+            <p class="text-muted m-0">База данных Google Sheets + GitHub Pages</p>
         </div>
-        <!-- Живой поиск по приложению -->
-        <div class="col-md-6">
-            <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Поиск по названию или ID...">
+        <div class="col-md-5 mt-3 mt-md-0">
+            <input type="text" id="searchInput" class="form-control form-control-lg border-0 shadow-sm" placeholder="🔍 Быстрый поиск...">
         </div>
     </div>
 
-    <!-- Индикатор загрузки -->
+    <!-- ФОРМА ВВОДА ДАННЫХ -->
+    <div class="card p-4 mb-5 border-0 shadow-sm bg-white rounded-4">
+        <h4 class="fw-bold text-primary mb-3">Добавить новую запись</h4>
+        <form id="dataForm">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-secondary">Название записи</label>
+                    <input type="text" id="formTitle" class="form-control form-control-lg border-light bg-light" placeholder="Введите название..." required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-secondary">Комментарий (любая длина)</label>
+                    <textarea id="formComment" class="form-control border-light bg-light" rows="4" placeholder="Напишите развернутый комментарий со всеми деталями..." required></textarea>
+                </div>
+                <div class="col-12 text-end">
+                    <button type="submit" id="submitBtn" class="btn btn-primary btn-lg px-5 rounded-3">Сохранить в базу</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- СПИСОК КАРТОЧЕК -->
+    <h4 class="fw-bold text-dark mb-3">Существующие записи</h4>
+    
+    <!-- Загрузчик -->
     <div id="loader" class="text-center my-5">
         <div class="spinner-border text-primary" role="status"></div>
-        <p class="mt-2 text-muted">Загрузка данных...</p>
+        <p class="mt-2 text-muted">Синхронизация с таблицей...</p>
     </div>
 
-    <!-- Сюда JavaScript будет выводить карточки с данными -->
+    <!-- Контейнер для вывода карточек -->
     <div class="row g-3" id="appContainer"></div>
 </div>
 
 <script>
-    // ⚠️ ВСТАВЬ СЮДА СВОЮ ССЫЛКУ НА .CSV ИЗ GOOGLE ТАБЛИЦЫ
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTATr262S6BKRHYqXJDWn2fdXzvcuObfwICB0THLLoqDsWTUFbFB-jc5yK8exu0wYiLL-sEt9zmXOwf/pub?output=csv";
+    // ==========================================
+    // ⚠️ НАСТРОЙКА ССЫЛОК ПОД СЕБЯ:
+    // ==========================================
+    const csvUrl = "ВСТАВЬ_СЮДА_ССЫЛКУ_НА_CSV_ИЗ_ПРОШЛЫХ_ШАГОВ";
+    const scriptUrl = "ВСТАВЬ_СЮДА_URL_ВЕБ_ПРИЛОЖЕНИЯ_APPS_SCRIPT";
 
-    let globalData = []; // Переменная для хранения загруженных данных
+    let globalData = [];
 
-    // Функция для разбора CSV-строки с учетом возможных запятых внутри кавычек
-    // Новая улучшенная функция для разбора CSV без потери длинного текста
-function parseCSV(text) {
-    let lines = [];
-    let row = [""];
-    let inQuotes = false;
+    // Умный разбор CSV, сохраняющий длинный текст с переносами строк и запятыми
+    function parseCSV(text) {
+        let lines = [];
+        let row = [""];
+        let inQuotes = false;
 
-    for (let i = 0; i < text.length; i++) {
-        let r = text[i];
-        let next = text[i+1];
+        for (let i = 0; i < text.length; i++) {
+            let r = text[i];
+            let next = text[i+1];
 
-        if (r === '"') {
-            if (inQuotes && next === '"') { 
-                row[row.length - 1] += '"'; i++; 
-            } else { 
-                inQuotes = !inQuotes; 
+            if (r === '"') {
+                if (inQuotes && next === '"') { 
+                    row[row.length - 1] += '"'; i++; 
+                } else { 
+                    inQuotes = !inQuotes; 
+                }
+            } else if (r === ',' && !inQuotes) {
+                row.push('');
+            } else if ((r === '\r' || r === '\n') && !inQuotes) {
+                if (r === '\r' && next === '\n') { i++; }
+                lines.push(row);
+                row = [""];
+            } else {
+                row[row.length - 1] += r;
             }
-        } else if (r === ',' && !inQuotes) {
-            row.push('');
-        } else if ((r === '\r' || r === '\n') && !inQuotes) {
-            if (r === '\r' && next === '\n') { i++; }
-            lines.push(row);
-            row = [""];
-        } else {
-            row[row.length - 1] += r;
         }
+        if (row.length > 1 || row[0] !== "") {
+            lines.push(row);
+        }
+        return lines.filter(r => r.length > 0);
     }
-    if (row.length > 1 || row[0] !== "") {
-        lines.push(row);
-    }
-    return lines.filter(r => r.length > 0);
-}
 
-
+    // Чтение данных из Google Sheets
     async function loadData() {
         try {
-            const response = await fetch(csvUrl);
+            // Добавляем к ссылке случайный параметр, чтобы браузер не кэшировал старую таблицу
+            const response = await fetch(csvUrl + "&nocache=" + new Date().getTime());
             const text = await response.text();
             
-            // Превращаем CSV-текст в массив массивов
             const rawRows = parseCSV(text);
-            if (rawRows.length < 2) return;
+            if (rawRows.length < 2) {
+                document.getElementById('appContainer').innerHTML = `<div class="col-12 text-center text-muted">Таблица пока пуста</div>`;
+                document.getElementById('loader').classList.add('d-none');
+                return;
+            }
 
-            // Вытаскиваем заголовки (первая строка таблицы)
             const headers = rawRows[0];
             
-            // Формируем удобный массив объектов и сразу фильтруем пустые строки
             globalData = rawRows.slice(1).map(row => {
                 let item = {};
                 headers.forEach((header, index) => {
-                    item[header] = row[index] || ""; // Если ячейка пустая, пишем пустую строку
+                    item[header.trim()] = row[index] ? row[index].trim() : "";
                 });
                 return item;
             }).filter(item => {
-                // ТРЕНИРОВКА ФИЛЬТРАЦИИ: исключаем строки, где, например, главный элемент или ID пустой
-                // Предполагаем, что у тебя есть колонка "Название" или первая колонка не должна быть пустой
-                const firstKey = headers[0];
-                return item[firstKey] && item[firstKey] !== ""; 
+                // Фильтруем пустые строки: у записи должен быть ID или Название
+                return (item['ID'] && item['ID'] !== "") || (item['Название'] && item['Название'] !== "");
             });
 
             document.getElementById('loader').classList.add('d-none');
             renderCards(globalData);
 
         } catch (error) {
-            console.error("Ошибка загрузки данных:", error);
-            document.getElementById('loader').innerHTML = `<p class="text-danger">Не удалось загрузить данные. Проверьте публикацию таблицы.</p>`;
+            console.error("Ошибка чтения данных:", error);
+            document.getElementById('loader').innerHTML = `<p class="text-danger">Ошибка синхронизации данных. Проверьте публикацию .csv</p>`;
         }
     }
 
-    // Функция отрисовки карточек на экране
+    // Отрисовка карточек
     function renderCards(data) {
         const container = document.getElementById('appContainer');
         container.innerHTML = "";
@@ -121,28 +148,18 @@ function parseCSV(text) {
             return;
         }
 
-        data.forEach(item => {
-            // Динамически собираем HTML-контент из всех доступных свойств объекта
-            let detailsHtml = "";
-            for (let key in item) {
-                // Не выводим заголовки "ID" или "Название" в тело карточки, так как они пойдут в шапку
-                if (key.toLowerCase() !== 'id' && key.toLowerCase() !== 'название' && item[key]) {
-                    detailsHtml += `<p class="card-text mb-1"><strong>${key}:</strong> ${item[key]}</p>`;
-                }
-            }
-
+        // Выводим карточки (новые будут вверху списка за счет .reverse())
+        [...data].reverse().forEach(item => {
             const card = document.createElement('div');
-            card.className = 'col-md-6 col-lg-4';
+            card.className = 'col-12';
             card.innerHTML = `
-                <div class="card h-100 card-app bg-white border-0 shadow-sm">
-                    <div class="card-body d-flex flex-column">
+                <div class="card card-app bg-white border-0 shadow-sm p-3 mb-2">
+                    <div class="card-body p-2">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h5 class="card-title fw-bold text-dark mb-0">${item['Название'] || 'Без названия'}</h5>
-                            ${item['ID'] ? `<span class="badge bg-secondary">ID: ${item['ID']}</span>` : ''}
+                            <h5 class="fw-bold text-dark m-0">${item['Название'] || 'Без названия'}</h5>
+                            <span class="badge bg-light text-primary border border-primary-subtle px-2 py-1">ID: ${item['ID'] || '?—'}</span>
                         </div>
-                        <div class="text-secondary flex-grow-1">
-                            ${detailsHtml}
-                        </div>
+                        <div class="comment-text mt-2">${item['Комментарий'] || '<span class="text-muted">Комментарий отсутствует</span>'}</div>
                     </div>
                 </div>
             `;
@@ -150,7 +167,50 @@ function parseCSV(text) {
         });
     }
 
-    // Логика живого поиска (поиск по любому полю карточки)
+    // Отправка новой формы (Добавление данных)
+    document.getElementById('dataForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Сохранение...";
+
+        const payload = {
+            title: document.getElementById('formTitle').value,
+            comment: document.getElementById('formComment').value
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                mode: "cors",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === "success") {
+                document.getElementById('dataForm').reset();
+                // Показываем лоадер и заново перечитываем обновленную таблицу
+                document.getElementById('appContainer').innerHTML = "";
+                document.getElementById('loader').classList.remove('d-none');
+                
+                // Google Таблице нужно около 2-3 секунд, чтобы обновить свой CSV-дамп в интернете
+                setTimeout(loadData, 2500); 
+            } else {
+                alert("Ошибка скрипта: " + result.message);
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Сохранить в базу";
+            }
+        } catch (error) {
+            console.error("Ошибка сети:", error);
+            alert("Не удалось отправить запрос. Проверьте развертывание веб-приложения.");
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Сохранить в базу";
+        }
+    });
+
+    // Живой поиск
     document.getElementById('searchInput').addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase().trim();
         const filtered = globalData.filter(item => {
@@ -159,9 +219,13 @@ function parseCSV(text) {
         renderCards(filtered);
     });
 
-    // Запуск приложения при загрузке страницы
+    // Стартовая инициализация
     window.addEventListener('DOMContentLoaded', loadData);
 </script>
+
+</body>
+</html>
+
 
 </body>
 </html>
